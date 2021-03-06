@@ -1,0 +1,15 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "generate-url-model",
+    "type": "object",
+    "properties": {
+      
+      "fileName": {
+        "type": "string"
+      },
+      "contentType": {
+        "type": "string"
+      }
+    },
+    "required": ["fileName", "contentType"]
+  }

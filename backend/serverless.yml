@@ -1,0 +1,290 @@
+service:
+  name: serverless-food-app-submit
+
+plugins:
+  - serverless-webpack
+  - serverless-iam-roles-per-function
+  - serverless-reqvalidator-plugin
+  - serverless-aws-documentation
+  - serverless-dynamodb-local
+  - serverless-offline
+
+provider:
+
+  tracing:
+    lambda: true
+    apiGateway: true
+
+  name: aws
+  runtime: nodejs10.x
+
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  environment:
+    DYNAMODB_TABLE: ${self:service.name}-${opt:stage, self:provider.stage}
+    USER_INDEX_NAME: 'USER_INDEX_NAME'
+    BUCKET_NAME: ${self:service.name}-${opt:stage, self:provider.stage}
+    SIGNED_URL_EXPIRATION: 3000
+
+  Auth:
+    handler: src/lambda/auth/auth0Authorizer.handler
+
+functions:
+  GetIngredients:
+    handler: src/lambda/http/ingredient/getIngredients.handler
+    events:
+      - http:
+          method: get
+          path: ingredients
+          cors: true
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:Query        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}/*"
+
+  CreateIngredient:
+    handler: src/lambda/http/ingredient/createIngredient.handler
+    events:
+      - http:
+          method: post
+          path: ingredients
+          cors: true
+          request:
+            schema:
+              application/json: ${file(src/models/validation/create-ingredient-model.json)}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:PutItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+  UpdateIngredient:
+    handler: src/lambda/http/ingredient/updateIngredient.handler
+    events:
+      - http:
+          method: patch
+          path: ingredients/{itemId}
+          cors: true
+          request:
+            schema:
+              application/json: ${file(src/models/validation/update-ingredient-model.json)}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:UpdateItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+  DeleteIngredient:
+    handler: src/lambda/http/ingredient/deleteIngredient.handler
+    events:
+      - http:
+          method: delete
+          cors: true
+          path: ingredients/{itemId}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:DeleteItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+  UploadUrlIngredient:
+    handler: src/lambda/http/ingredient/generateUploadUrl.handler
+    events:
+      - http:
+          method: post
+          cors: true
+          path: ingredient/{itemId}/attachment
+          request:
+            schema:
+              application/json: ${file(src/models/validation/generate-url-model.json)}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:UpdateItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+          - s3:GetObject
+        Resource: "arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*"
+
+  UploadUrlFood:
+    handler: src/lambda/http/food/generateUploadUrl.handler
+    events:
+      - http:
+          method: post
+          cors: true
+          path: food/{itemId}/attachment
+          request:
+            schema:
+              application/json: ${file(src/models/validation/generate-url-model.json)}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:UpdateItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+          - s3:GetObject
+        Resource: "arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*"
+
+  GetFoods:
+    handler: src/lambda/http/food/getFoods.handler
+    events:
+      - http:
+          method: get
+          path: foods
+          cors: true
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:Query        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}/*"
+
+  CreateFood:
+    handler: src/lambda/http/food/createFood.handler
+    events:
+      - http:
+          method: post
+          path: food
+          cors: true
+          request:
+            schema:
+              application/json: ${file(src/models/validation/create-food-model.json)}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:PutItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+  DeleteFood:
+    handler: src/lambda/http/food/deleteFood.handler
+    events:
+      - http:
+          method: delete
+          cors: true
+          path: food/{itemId}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:DeleteItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+  UpdateFood:
+    handler: src/lambda/http/food/updateFood.handler
+    events:
+      - http:
+          method: patch
+          path: foods/{itemId}
+          cors: true
+          request:
+            schema:
+              application/json: ${file(src/models/validation/update-food-model.json)}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - dynamodb:UpdateItem        
+        Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+custom:
+  serverless-offline:
+    httpPort: 4000
+    port: 4000
+
+  dynamodb:
+    start: 8000
+    inMemory: true
+    migrate: true
+    stages:
+      - dev
+
+  documentation:
+    api:
+      info:
+        version: v1.0.0
+        title: Food app
+        description: Serverless Food  App
+
+resources:
+  Resources:
+    FoodAppTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: itemId
+            AttributeType: S
+          - AttributeName: ingredientId
+            AttributeType: S
+          - AttributeName: foodId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: itemId
+            KeyType: RANGE
+        LocalSecondaryIndexes:
+          - IndexName: foodIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: foodId
+                KeyType: RANGE
+            Projection:
+              NonKeyAttributes:
+                - name
+                - attachmentUrl
+                - ingredientItemIds
+              ProjectionType: INCLUDE
+          - IndexName: ingredientIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: ingredientId
+                KeyType: RANGE
+            Projection:
+              NonKeyAttributes:
+                - name
+                - attachmentUrl
+              ProjectionType: INCLUDE
+        # GlobalSecondaryIndexes:
+        #   - IndexName: foodIngredientIndex
+        #     KeySchema:
+        #       - AttributeName: foodId
+        #         KeyType: HASH
+        #     Projection:
+        #       NonKeyAttributes:
+        #         - name
+        #         - attachmentUrl
+        #       ProjectionType: INCLUDE
+                
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+
+    AttachmentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.BUCKET_NAME}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins: ['*']
+              AllowedHeaders: ['*']
+              AllowedMethods: [GET,PUT]
+              MaxAge: 3000
+
+    BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        PolicyDocument:
+          Id: MyPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForGetBucketObjects
+              Effect: Allow
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource: 'arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*'
+        Bucket: !Ref AttachmentsBucket
